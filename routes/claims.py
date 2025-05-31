@@ -1,16 +1,19 @@
-from fastapi import APIRouter, File, UploadFile, HTTPException
+from fastapi import APIRouter, File, UploadFile, HTTPException, Request
 import os
 import uuid
+import json
 from typing import List, Dict, Any
 from services.pdf_service import extract_text_from_pdf
 from services.document_classifier import DocumentClassifier
 from services.document_processor import DocumentProcessor
 from services.claim_validator import ClaimValidator
+from middleware.rate_limiter import limiter
 
 router = APIRouter()
 
 @router.post("/process-claim")
-async def process_claim(files: List[UploadFile] = File(...)):
+@limiter.limit("2/minute")
+async def process_claim(request: Request, files: List[UploadFile] = File(...)):
     temp_files = []
     processed_documents = []
     
@@ -21,6 +24,13 @@ async def process_claim(files: List[UploadFile] = File(...)):
             
             with open(temp_file_path, "wb") as f:
                 f.write(await file.read())
+            
+            cache_key = f"claim_{file.filename}"
+            cached_result = request.app.state.redis.get(cache_key)
+            
+            if cached_result:
+                processed_documents.append(json.loads(cached_result))
+                continue
             
             extracted_text = extract_text_from_pdf(temp_file_path)
             
@@ -34,6 +44,12 @@ async def process_claim(files: List[UploadFile] = File(...)):
                 doc_data = await DocumentProcessor.process_id_card(extracted_text)
             else:
                 continue 
+            
+            request.app.state.redis.setex(
+                cache_key,
+                3600,  # Cache for 1 hour
+                json.dumps(doc_data)
+            )
             
             processed_documents.append(doc_data)
         
