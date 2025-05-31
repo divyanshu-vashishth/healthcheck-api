@@ -1,155 +1,98 @@
-# Medical Claim Processor API
+# Medical Claim Processor
 
-A FastAPI-based service that processes medical insurance claims using AI-powered document analysis and validation.
+FastAPI backend that processes medical insurance claim documents using AI.
 
 ## Features
-
-- Multi-document processing (bills, discharge summaries, ID cards)
-- AI-powered document classification
-- Automated claim validation
-- Rate limiting and caching
-- Redis-based caching for improved performance
-
-## Architecture
-
-The project follows a modular architecture with the following components:
-
-- **Routes**: API endpoints for claim processing
-- **Services**: Core business logic for document processing
-- **Agents**: AI-powered document analysis and classification
-- **Models**: Data models and schemas
-- **Middleware**: Rate limiting and caching
+- PDF text extraction
+- Document classification using Gemini
+- Multi-document processing
+- Rate limiting (2/min for claims, 5/min for root)
+- Redis caching
+- Docker support
 
 ## AI Tools Usage
 
-### ChatGPT
-Used for initial project understanding and architecture design:
-- Understanding folder structure and best practices
-- Designing the modular architecture
-- Planning the document processing flow
+### Development Process
+1. Used ChatGPT to understand folder structure and architecture
+2. Used Cursor for generating and implementing code files
+3. Used Gemini for document processing and validation
 
-### Cursor
-Used for code generation and implementation:
-- Generating FastAPI route handlers
-- Creating document processing services
-- Implementing AI agents for document analysis
-- Writing validation logic
+### Example Prompts Used
 
-## Example Prompts Used
-
-### 1. Document Classification Prompt
+1. Architecture Planning (ChatGPT):
 ```
-You are an expert document classifier. Analyze the following medical document and classify it into one of these categories:
-- bill
-- discharge_summary
-- id_card
-- unknown
-
-Consider these characteristics:
-- Bills contain amounts, dates, and hospital details
-- Discharge summaries contain patient history, diagnosis, and treatment details
-- ID cards contain patient identification information
-
-Document text:
-{extracted_text}
-
-Respond with a JSON object containing:
-{
-    "document_type": "category",
-    "confidence": 0.95,
-    "reasoning": "brief explanation"
-}
+Help me design a folder structure , code for a FastAPI application that processes medical claims using AI. The app should handle PDF processing, document classification, and claim validation. {context} of the assignment
 ```
 
-### 2. Bill Processing Prompt
+2. Code Generation (Cursor):
 ```
-You are an expert medical bill analyzer. Extract the following information from this hospital bill:
-
-Required fields:
-- hospital_name
-- total_amount
-- date_of_service
-- patient_name
-- bill_number
-
-Optional fields:
-- room_charges
-- medicine_charges
-- procedure_charges
-- insurance_details
-
-Document text:
-{extracted_text}
-
-Respond with a JSON object containing the extracted information.
+integrate docker in this project , implement ratelimiting if you can , you can integrate database it is up to you , keep the changes minimal
 ```
 
-### 3. Claim Validation Prompt
-```
-You are an expert insurance claim validator. Analyze these documents for a claim:
+## Setup
 
-Documents:
-{processed_documents}
+### Using Docker (Recommended)
 
-Check for:
-1. Required document presence
-2. Data consistency across documents
-3. Date validations
-4. Amount validations
-5. Policy compliance
-
-Respond with a JSON object containing:
-{
-    "validation": {
-        "missing_documents": [],
-        "discrepancies": []
-    },
-    "claim_decision": {
-        "status": "approved/rejected",
-        "reason": "detailed explanation"
-    }
-}
-```
-
-## Setup and Installation
-
-1. Create a virtual environment:
+1. Set environment variables:
 ```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+export GEMINI_API_KEY=your_api_key_here
+or write it to .env file
 ```
 
-2. Install dependencies:
+2. Run with Docker:
+```bash
+docker-compose up --build
+```
+
+API will be available at http://localhost:8000
+
+### Manual Setup
+
+1. Install dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
-3. Set up environment variables:
+2. Set environment variables:
 ```bash
-cp .env.example .env
-# Edit .env with your configuration
+export GEMINI_API_KEY=your_api_key_here
+export REDIS_HOST=localhost
+export REDIS_PORT=6379
 ```
 
-4. Start Redis server (required for caching)
+3. Start Redis:
+```bash
+docker run -d -p 6379:6379 redis:alpine
+```
 
-5. Run the application:
+4. Run the server:
 ```bash
 uvicorn main:app --reload
 ```
 
-## API Endpoints
+## API Endpoint
 
-- `POST /process-claim`: Process multiple medical documents for claim validation
-  - Accepts multiple PDF files
-  - Returns structured claim analysis
+### POST /process-claim
+Process multiple PDF files (bills, discharge summaries, ID cards)
 
-## Rate Limiting
-
-- 2 requests per minute per IP address
-- Redis-based caching for processed documents (1-hour TTL)
-
-## Error Handling
-
-- Proper error responses for invalid documents
-- Rate limit exceeded responses
-- Validation error details
+Response:
+```json
+{
+  "documents": [
+    {
+      "type": "bill",
+      "hospital_name": "string",
+      "total_amount": number,
+      "date_of_service": "YYYY-MM-DD"
+    }
+  ],
+  "validation": {
+    "missing_documents": [],
+    "discrepancies": []
+  },
+  "claim_decision": {
+    "status": "approved/rejected/pending",
+    "reason": "string"
+  }
+}
+```
